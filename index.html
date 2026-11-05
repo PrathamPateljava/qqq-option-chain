@@ -83,7 +83,7 @@ select { padding: 4px 6px; border: 1px solid var(--rule); border-radius: 4px; ba
 code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; }
 
 /* Summary strip */
-.metrics { margin: 0 24px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(0, 1.7fr);
+.metrics { margin: 0 24px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 1.7fr);
   border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .metrics > div { padding: 8px 12px 10px; border-left: 1px solid var(--rule); min-width: 0; }
 .metrics > div:first-child { padding-left: 0; border-left: 0; }
@@ -162,6 +162,10 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 .positions td, .greeks td { padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; vertical-align: middle; }
 .positions th.num, .greeks th.num, td.num { text-align: right; }
 .contract .k { font-weight: 500; }
+.contract .pick { display: inline-flex; align-items: center; gap: 6px; }
+.contract .pick .k { min-width: 8ch; text-align: center; }
+.contract .step { width: 24px; min-height: 24px; font-size: 15px; }
+.contract .c-quote { margin-left: 30px; }
 .sub { display: block; font-size: 12.5px; color: var(--muted); }
 .positions input.qty { width: 5.5ch; }
 .positions input.price { width: 7.5ch; }
@@ -250,6 +254,7 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
   <div><dt>Max loss</dt><dd id="m-maxl">–</dd></div>
   <div><dt>Chance of profit</dt><dd id="m-pop">–</dd></div>
   <div><dt id="m-credit-label">Net credit</dt><dd id="m-credit">–</dd></div>
+  <div><dt title="Rough Reg-T style estimate. Your broker's actual requirement may differ.">Est. margin</dt><dd id="m-margin">–</dd></div>
   <div class="wide"><dt>Breakevens at expiry</dt><dd id="m-be">–</dd></div>
 </dl>
 
@@ -915,6 +920,27 @@ function addLeg(type, strike, side) {
   render();
 }
 
+// Next/previous strike of the same type and expiration that the loaded chain has a quote for.
+function neighborStrike(leg, dir) {
+  const ch = state.chains.get(leg.exp);
+  if (!ch) return null;
+  const ks = ch.strikes.filter((k) => ch.byStrike.get(k)?.[leg.type]);
+  return (dir > 0 ? ks.find((k) => k > leg.strike) : ks.findLast((k) => k < leg.strike)) ?? null;
+}
+
+// Swap an open leg to the adjacent strike, re-entering at that contract's ask (buy) or bid (sell).
+function stepStrike(leg, dir) {
+  const k = neighborStrike(leg, dir);
+  if (k == null) return false;
+  const c = state.chains.get(leg.exp).byStrike.get(k)[leg.type];
+  const px = leg.side > 0 ? c.ask : c.bid;
+  const price = px > 0 ? px : quoteMid(c);
+  if (!(price >= 0) || price == null) return false;
+  Object.assign(leg, { strike: k, symbol: c.symbol, entry: round2(price), lastIv: c.iv ?? null,
+    openedAt: new Date().toISOString() });
+  return true;
+}
+
 function closeLeg(leg) {
   const v = legView(leg);
   let px = leg.side > 0 ? v.quote?.bid : v.quote?.ask; // longs sell at the bid, shorts buy back at the ask
@@ -949,7 +975,7 @@ function render() {
   const a = active.length && state.spot ? E.analyze(active, ctx) : null;
   state.last = { a, ctx, firstExpMs, maxMin, firstExp };
 
-  renderMetrics(a);
+  renderMetrics(a, estimateMargin(open, state.spot, a));
   renderScenario();
   drawChart();
   renderPositions(views);
@@ -1002,8 +1028,34 @@ function renderBanner() {
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
 }
 
-function renderMetrics(a) {
+// Rough Reg-T style margin for the open legs (no stock legs, equity/ETF options).
+//  - longs only: the debit paid
+//  - defined risk: the max loss at expiry, capped at the naked requirement
+//  - undefined risk: naked requirement on each short leg plus the cost of the longs
+// Naked short, per share: mark + max(20% of spot - OTM amount, 10% of spot (call) / strike (put)).
+function estimateMargin(open, spot, a) {
+  if (!open.length || !(spot > 0)) return null;
+  const size = (l) => l.qty * E.MULT;
+  const markOf = (l) => (l.mark ?? l.entry) || 0;
+  const shorts = open.filter((l) => l.side < 0);
+  const longCost = open.filter((l) => l.side > 0).reduce((t, l) => t + size(l) * l.entry, 0); // paid in full
+  if (!shorts.length) return { value: longCost, kind: 'Debit paid' };
+  const naked = shorts.reduce((t, l) => {
+    const otm = l.type === 'C' ? Math.max(0, l.strike - spot) : Math.max(0, spot - l.strike);
+    const floor = 0.10 * (l.type === 'C' ? spot : l.strike);
+    return t + size(l) * (markOf(l) + Math.max(0.20 * spot - otm, floor));
+  }, 0) + longCost;
+  if (a && Number.isFinite(a.maxLoss)) {
+    const risk = Math.max(0, -a.maxLoss);
+    return risk <= naked ? { value: risk, kind: 'Defined risk' } : { value: naked, kind: 'Naked' };
+  }
+  return { value: naked, kind: 'Naked' };
+}
+
+function renderMetrics(a, margin) {
   const set = (id, text, cls = '') => { const el = $(id); el.textContent = text; el.className = cls; };
+  set('m-margin', margin ? money(margin.value, false) : '–');
+  $('m-margin').title = margin ? `${margin.kind} (estimate)` : '';
   if (!a) {
     for (const id of ['m-pnl', 'm-booked', 'm-maxp', 'm-maxl', 'm-pop', 'm-credit', 'm-be']) set(id, '–');
     $('m-credit-label').textContent = 'Net credit';
@@ -1245,7 +1297,9 @@ function posRow(v) {
     <td><input type="checkbox" data-act="include" ${v.include !== false ? 'checked' : ''} aria-label="Include ${name} in the payoff"></td>
     <td><button type="button" class="side ${v.side > 0 ? 'buy' : 'sell'}" data-act="side" ${dis} aria-label="${v.side > 0 ? 'Buy' : 'Sell'}. Switch side">${v.side > 0 ? 'Buy' : 'Sell'}</button></td>
     <td><input type="number" class="qty" min="1" step="1" value="${v.qty}" data-act="qty" ${dis} aria-label="Contracts"></td>
-    <td class="contract"><span class="k">${name}</span><span class="sub">${shortDate(v.exp)}, ${dteTxt(v.exp)}</span></td>
+    <td class="contract">${v.closed
+      ? `<span class="k">${name}</span><span class="sub">${shortDate(v.exp)}, ${dteTxt(v.exp)}</span>`
+      : `<span class="pick"><button type="button" class="step" data-act="strike" data-dir="-1" aria-label="Previous strike">−</button><span class="k">${name}</span><button type="button" class="step" data-act="strike" data-dir="1" aria-label="Next strike">+</button></span><span class="sub c-quote">${shortDate(v.exp)}, ${dteTxt(v.exp)}</span>`}</td>
     <td class="num"><input type="number" class="price" min="0" step="0.01" value="${v.entry.toFixed(2)}" data-act="entry" ${dis} aria-label="Entry price"></td>
     <td class="num c-mark"></td>
     <td class="num c-pnl"></td>
@@ -1256,7 +1310,7 @@ function posRow(v) {
 
 function renderPositions(views) {
   const body = $('pos-body');
-  const sig = state.legs.map((l) => [l.id, l.side, l.qty, l.entry, l.exitPrice, l.include !== false].join(':')).join('|');
+  const sig = state.legs.map((l) => [l.id, l.side, l.qty, l.strike, l.entry, l.exitPrice, l.include !== false].join(':')).join('|');
   const focus = document.activeElement;
   const editing = body.contains(focus) && focus.tagName === 'INPUT' && focus.type !== 'checkbox';
   if (sig !== state.posSig && !editing) {
@@ -1279,6 +1333,12 @@ function renderPositions(views) {
     cell.textContent = money(pnl);
     cell.className = `num c-pnl ${signCls(pnl)}`;
     tr.querySelector('.c-iv').textContent = v.closed ? '' : `${(v.iv * 100).toFixed(1)}%`;
+    const quoteCell = tr.querySelector('.c-quote');
+    if (quoteCell) {
+      const q = v.quote;
+      quoteCell.textContent = `${shortDate(v.exp)}, ${dteTxt(v.exp)}` + (q ? ` · bid ${fix(q.bid)} · ask ${fix(q.ask)}` : '');
+      for (const b of tr.querySelectorAll('[data-act="strike"]')) b.disabled = neighborStrike(v, +b.dataset.dir) == null;
+    }
   }
   $('pos-foot').innerHTML = views.length
     ? `<tr><td colspan="6">Open ${money(openTotal)}, booked ${money(booked)}</td><td class="num ${signCls(openTotal + booked)}">${money(openTotal + booked)}</td><td colspan="2"></td></tr>`
@@ -1406,6 +1466,14 @@ function wire() {
     else if (act === 'close') closeLeg(leg);
     else if (act === 'remove') state.legs = state.legs.filter((l) => l !== leg);
     else if (act === 'include') leg.include = el.checked;
+    else if (act === 'strike') {
+      if (leg.exitPrice != null || !stepStrike(leg, +el.dataset.dir)) return;
+      render();
+      // the row was rebuilt; keep focus on the same button so repeated presses keep stepping
+      const again = posBody.querySelector(`tr[data-id="${leg.id}"] [data-act="strike"][data-dir="${el.dataset.dir}"]`);
+      if (again && !again.disabled) again.focus();
+      return;
+    }
     else return;
     render();
   });
