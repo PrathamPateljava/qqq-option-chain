@@ -1,0 +1,4 @@
+requests>=2.31
+python-dotenv>=1.0
+# Only needed for --source schwab (qqq_chain.py)
+pandas>=2.0

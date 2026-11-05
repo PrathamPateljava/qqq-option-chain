@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+schwab_tokens.json
+*_tokens.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data output
+*.csv
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp

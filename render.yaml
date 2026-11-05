@@ -1,0 +1,17 @@
+# Render blueprint: New > Blueprint, point it at this repo.
+services:
+  - type: web
+    name: qqq-payoff
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python payoff_server.py --host 0.0.0.0 --no-browser
+    envVars:
+      - key: DATA_SOURCE
+        value: alpaca
+      - key: ALLOWED_HOSTS
+        sync: false   # set to your-service.onrender.com
+      - key: ALPACA_API_KEY_ID
+        sync: false
+      - key: ALPACA_API_SECRET_KEY
+        sync: false
