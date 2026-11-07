@@ -1,1 +1,1 @@
-web: python payoff_server.py --host 0.0.0.0 --no-browser
+web: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'

@@ -209,6 +209,41 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
 .chain-table .q:hover:not(:disabled) { border-color: var(--ink); }
 .chain-table .q:disabled { opacity: .35; }
 
+/* Account and saved strategies */
+.account { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.acct-email { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+button.primary { background: var(--ink); color: var(--sheet); border-color: var(--ink); font-weight: 600; }
+button.primary:hover:not(:disabled) { opacity: .9; }
+.strat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
+.strat-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.strat-title h2 { margin: 0; font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strat-status { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.strat-status[data-kind="dirty"] { color: var(--warn); }
+.strat-status[data-kind="error"] { color: var(--loss); }
+.strat-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+#notes { display: block; width: 100%; min-height: 160px; margin-top: 12px; padding: 10px 12px; resize: vertical;
+  border: 1px solid var(--rule); border-radius: 4px; background: var(--sheet); color: var(--ink); font: inherit; line-height: 1.5; }
+dialog { width: min(440px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--sheet); color: var(--ink); box-shadow: 0 18px 50px rgba(14, 28, 50, .3); }
+dialog.wide { width: min(760px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(10, 20, 36, .45); }
+.dlg { display: grid; gap: 14px; padding: 20px 22px; }
+.dlg h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.dlg p { margin: 0; font-size: 14px; color: var(--muted); }
+.dlg label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.dlg input[type="email"], .dlg input[type="password"], .dlg input[type="text"] { padding: 7px 9px; border: 1px solid var(--rule);
+  border-radius: 4px; background: var(--paper); color: var(--ink); font-size: 15px; }
+.dlg .err { color: var(--loss); font-size: 13.5px; }
+.dlg .acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.dlg .acts .switch { margin-right: auto; }
+.strat-list { max-height: min(60vh, 520px); overflow: auto; border-top: 1px solid var(--rule); }
+.strat-list table { font-size: 14px; }
+.strat-list th { padding: 8px; text-align: left; font-size: 13px; font-weight: 500; color: var(--muted); position: sticky; top: 0; background: var(--sheet); }
+.strat-list td { padding: 7px 8px; border-top: 1px solid var(--grid); vertical-align: middle; }
+.strat-list td.name { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.strat-list tr.current td.name::after { content: " (open)"; font-weight: 400; color: var(--muted); }
+.strat-list td.acts { white-space: nowrap; text-align: right; }
+
 @media (prefers-reduced-motion: reduce) { .just-added td { animation: none; } }
 @media (max-width: 1180px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
@@ -244,6 +279,11 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
       <option value="0">paused</option>
     </select>
   </label>
+  <div class="account" id="account" hidden>
+    <span id="acct-email" class="acct-email" hidden></span>
+    <button id="acct-login" type="button">Log in</button>
+    <button id="acct-logout" type="button" class="quiet" hidden>Log out</button>
+  </div>
 </header>
 <div id="banner" class="banner" hidden></div>
 
@@ -260,6 +300,18 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
 
 <main class="layout">
   <section class="work" aria-label="Payoff chart and positions">
+    <div class="strat-bar">
+      <div class="strat-title">
+        <h2 id="strat-name">Unsaved strategy</h2>
+        <span id="strat-status" class="strat-status" role="status"></span>
+      </div>
+      <div class="strat-acts">
+        <button id="strat-save" type="button" class="primary">Save</button>
+        <button id="strat-saveas" type="button">Save as new</button>
+        <button id="strat-list" type="button">My strategies</button>
+        <button id="strat-new" type="button" class="quiet">New</button>
+      </div>
+    </div>
     <div class="chart-head">
       <ul class="legend">
         <li><svg width="28" height="10" aria-hidden="true"><line x1="1" y1="5" x2="14" y2="5" class="line-up"/><line x1="14" y1="5" x2="27" y2="5" class="line-down"/></svg><span id="lg-exp">At expiry</span></li>
@@ -305,6 +357,7 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
     <div class="tabs" role="tablist" aria-label="Details">
       <button id="tab-pos" role="tab" type="button" aria-selected="true" aria-controls="panel-pos">Positions</button>
       <button id="tab-greeks" role="tab" type="button" aria-selected="false" aria-controls="panel-greeks" tabindex="-1">Greeks</button>
+      <button id="tab-notes" role="tab" type="button" aria-selected="false" aria-controls="panel-notes" tabindex="-1">Notes</button>
     </div>
     <div id="panel-pos" role="tabpanel" aria-labelledby="tab-pos">
       <div class="table-wrap">
@@ -338,6 +391,10 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
       </div>
       <p id="greeks-note" class="note"></p>
     </div>
+    <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden>
+      <label for="notes" class="vh">Strategy notes</label>
+      <textarea id="notes" maxlength="10000" placeholder="Reasoning, client instructions, adjustments…"></textarea>
+    </div>
   </section>
 
   <aside class="chain" aria-label="Option chain">
@@ -357,6 +414,48 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
     </div>
   </aside>
 </main>
+
+<dialog id="auth-dlg" aria-labelledby="auth-title">
+  <form id="auth-form" class="dlg" method="dialog" novalidate>
+    <h2 id="auth-title">Log in</h2>
+    <p id="auth-reason" hidden></p>
+    <label>Email<input id="auth-email" type="email" autocomplete="email" required maxlength="254"></label>
+    <label>Password<input id="auth-password" type="password" autocomplete="current-password" required minlength="1" maxlength="256"></label>
+    <p id="auth-hint" hidden>At least 10 characters.</p>
+    <p id="auth-err" class="err" role="alert" hidden></p>
+    <div class="acts">
+      <button id="auth-switch" class="quiet switch" type="button">Create an account</button>
+      <button type="button" data-close>Cancel</button>
+      <button id="auth-submit" class="primary" type="submit">Log in</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="name-dlg" aria-labelledby="name-title">
+  <form id="name-form" class="dlg" method="dialog" novalidate>
+    <h2 id="name-title">Save strategy</h2>
+    <label>Name<input id="name-input" type="text" maxlength="100" required autocomplete="off"></label>
+    <p id="name-err" class="err" role="alert" hidden></p>
+    <div class="acts">
+      <button type="button" data-close>Cancel</button>
+      <button id="name-submit" class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="list-dlg" class="wide" aria-labelledby="list-title">
+  <div class="dlg">
+    <h2 id="list-title">My strategies</h2>
+    <p id="list-msg" hidden></p>
+    <div class="strat-list" id="list-wrap" hidden>
+      <table>
+        <thead><tr><th>Name</th><th>Symbol</th><th class="num">Legs</th><th>Updated</th><th><span class="vh">Actions</span></th></tr></thead>
+        <tbody id="list-body"></tbody>
+      </table>
+    </div>
+    <div class="acts"><button type="button" data-close>Close</button></div>
+  </div>
+</dialog>
 
 <script>
 /* Payoff engine: Black-Scholes-Merton pricing, position P&L, payoff analytics and a
@@ -604,7 +703,7 @@ td.empty { padding: 26px 8px; color: var(--muted); white-space: normal; }
     return { rows, net };
   }
 
-  // ---- Simulated feed (used when the page runs without payoff_server.py) -------------------
+  // ---- Simulated feed (used when the page runs without the app server) -------------------
   const occ = (root, exp, type, K) =>
     `${root.padEnd(6)}${exp.slice(2, 4)}${exp.slice(5, 7)}${exp.slice(8, 10)}${type}${String(Math.round(K * 1000)).padStart(8, '0')}`;
 
@@ -698,6 +797,10 @@ const state = {
   legs: [], ivShift: 0, targetMin: 0, spotPct: 0, r: 0.04, q: 0.006,
   refreshMs: 5000, timer: null, busy: false,
   last: null, geo: null, hoverX: null, chainSig: '', posSig: null, flashId: null, centerPending: false,
+  // accounts and saved strategies (positions are only kept in the database, never in the browser)
+  account: { available: false, user: null },
+  strategy: { id: null, name: '', savedSig: null, updatedAt: null, error: null, busy: false },
+  notes: '',
 };
 
 /* ---------- formatting ---------- */
@@ -740,9 +843,11 @@ function loadPrefs() {
 function savePrefs() {
   try { LS?.setItem('payoff:prefs', JSON.stringify({ symbol: state.symbol, refreshMs: state.refreshMs, r: state.r, q: state.q })); } catch {}
 }
-const legsKey = () => `payoff:legs:${state.mode}:${state.symbol}`;
-function loadLegs() { try { return JSON.parse(LS?.getItem(legsKey()) || '[]'); } catch { return []; } }
-function saveLegs() { try { LS?.setItem(legsKey(), JSON.stringify(state.legs)); } catch {} }
+// Positions used to be kept in the browser. Strategies now live only in the user's account,
+// so clear anything an older version left behind.
+function purgeOldLegs() {
+  try { Object.keys(LS || {}).filter((k) => k.startsWith('payoff:legs:')).forEach((k) => LS.removeItem(k)); } catch {}
+}
 
 /* ---------- data ---------- */
 async function api(path) {
@@ -765,6 +870,21 @@ async function api(path) {
     throw err;
   }
   return body;
+}
+// JSON calls to the app's own API. Writes carry X-Requested-With, which the server requires (CSRF).
+async function apiCall(method, path, body) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method, cache: 'no-store', credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'payoff', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch { throw Object.assign(new Error("Couldn't reach the server. Check your connection."), { status: 0 }); }
+  const isJson = (res.headers.get('content-type') || '').includes('application/json');
+  const data = isJson ? await res.json().catch(() => null) : null;
+  if (!res.ok) throw Object.assign(new Error(data?.error || `The server answered ${res.status}.`), { status: res.status, json: isJson });
+  return data;
 }
 const q = (s) => encodeURIComponent(s);
 const getExpirations = () => (state.mode === 'demo'
@@ -825,7 +945,7 @@ async function refreshChains() {
   if (firstError) throw firstError;
 }
 
-async function loadSymbol(sym) {
+async function loadSymbol(sym, legs = []) {
   state.symbol = sym;
   state.chains.clear();
   state.expirations = [];
@@ -836,7 +956,7 @@ async function loadSymbol(sym) {
   state.posSig = null;
   $('symbol').value = sym;
   if (state.mode === 'demo') state.feed = E.makeDemoFeed(sym, DEMO_SPOT[sym] || 100);
-  state.legs = loadLegs();
+  state.legs = legs;
   savePrefs();
   try {
     const data = await getExpirations();
@@ -980,7 +1100,7 @@ function render() {
   drawChart();
   renderPositions(views);
   renderGreeks(open, ctx);
-  saveLegs();
+  renderStrategyBar();
   if (state.centerPending && state.chains.has(state.selectedExp)) { centerChain(); state.centerPending = false; }
 }
 
@@ -1013,15 +1133,15 @@ function renderBanner() {
   if (state.mode === 'live' && state.error) {
     kind = 'error';
     const hint = state.source === 'schwab'
-      ? 'If payoff_server.py is asking you to log in, finish that in its terminal.'
-      : 'The terminal running payoff_server.py shows the details.';
+      ? 'If the server is asking you to log in to Schwab, finish that in its terminal.'
+      : 'The terminal running the server shows the details.';
     html = `<p>Couldn't load ${esc(state.symbol)} from ${esc(sourceName(state.source))}: ${esc(state.error.message)}. ${hint}</p>
       <div><button type="button" data-act="retry">Try again</button><button type="button" class="quiet" data-act="demo">Use simulated prices</button></div>`;
   } else if (state.mode === 'demo' && state.error) {
     kind = 'error';
     html = `<p>Couldn't build simulated prices for ${esc(state.symbol)}: ${esc(state.error.message)}.</p>`;
   } else if (state.mode === 'demo') {
-    html = '<p>These are simulated prices. For live quotes, run <code>python payoff_server.py</code> and use the page it opens.</p>';
+    html = '<p>These are simulated prices. For live quotes, run <code>python -m app</code> and use the page it opens.</p>';
   }
   el.hidden = !html;
   el.dataset.kind = kind;
@@ -1434,7 +1554,7 @@ function centerChain() {
 
 /* ---------- events ---------- */
 function selectTab(name) {
-  for (const [tab, panel] of [['tab-pos', 'panel-pos'], ['tab-greeks', 'panel-greeks']]) {
+  for (const [tab, panel] of [['tab-pos', 'panel-pos'], ['tab-greeks', 'panel-greeks'], ['tab-notes', 'panel-notes']]) {
     const on = tab === `tab-${name}`;
     $(tab).setAttribute('aria-selected', String(on));
     $(tab).tabIndex = on ? 0 : -1;
@@ -1518,9 +1638,12 @@ function wire() {
 
   $('tab-pos').addEventListener('click', () => selectTab('pos'));
   $('tab-greeks').addEventListener('click', () => selectTab('greeks'));
+  $('tab-notes').addEventListener('click', () => selectTab('notes'));
   document.querySelector('.tabs').addEventListener('keydown', (ev) => {
     if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
-    const next = $('tab-pos').getAttribute('aria-selected') === 'true' ? 'greeks' : 'pos';
+    const names = ['pos', 'greeks', 'notes'];
+    const cur = names.findIndex((n) => $(`tab-${n}`).getAttribute('aria-selected') === 'true');
+    const next = names[(cur + (ev.key === 'ArrowRight' ? 1 : names.length - 1)) % names.length];
     selectTab(next);
     $(`tab-${next}`).focus();
   });
@@ -1533,8 +1656,10 @@ function wire() {
   });
   $('symbol').addEventListener('change', (ev) => {
     const sym = ev.target.value.trim().toUpperCase();
-    if (/^\$?[A-Z][A-Z./]{0,9}$/.test(sym) && sym !== state.symbol) loadSymbol(sym);
-    else ev.target.value = state.symbol;
+    if (/^\$?[A-Z][A-Z./]{0,9}$/.test(sym) && sym !== state.symbol && confirmDiscard(`switch to ${sym}`)) {
+      resetStrategy();
+      loadSymbol(sym);
+    } else ev.target.value = state.symbol;
   });
   $('banner').addEventListener('click', async (ev) => {
     const act = ev.target.closest('button')?.dataset.act;
@@ -1554,13 +1679,339 @@ function wire() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 }
 
+/* ---------- accounts and saved strategies ---------- */
+const LEG_FIELDS = ['id', 'include', 'side', 'qty', 'type', 'strike', 'exp', 'entry', 'symbol', 'lastIv',
+  'openedAt', 'exitPrice', 'closedAt'];
+const legRecord = (l) => Object.fromEntries(LEG_FIELDS.map((k) => [k, l[k] ?? (k === 'include' ? true : null)]));
+
+function strategyPayload() {
+  return {
+    symbol: state.symbol,
+    legs: state.legs.map(legRecord),
+    scenario: { ivShift: state.ivShift, targetMin: state.targetMin, spotPct: state.spotPct, r: state.r, q: state.q },
+    notes: state.notes,
+  };
+}
+// lastIv follows the market on every refresh and the target date is clamped as time
+// passes, so neither counts as an edit.
+function strategySig() {
+  const p = strategyPayload();
+  p.legs = p.legs.map(({ lastIv, ...rest }) => rest);
+  delete p.scenario.targetMin;
+  return JSON.stringify(p);
+}
+function isDirty() {
+  if (state.strategy.id) return strategySig() !== state.strategy.savedSig;
+  return state.legs.length > 0 || state.notes.trim() !== '';
+}
+function confirmDiscard(action) {
+  return !isDirty() || confirm(`You have unsaved changes. Discard them and ${action}?`);
+}
+function resetStrategy() {
+  state.strategy = { id: null, name: '', savedSig: null, updatedAt: null, error: null, busy: false };
+  state.notes = '';
+  $('notes').value = '';
+  state.ivShift = 0; state.targetMin = 0; state.spotPct = 0;
+}
+function markSaved(s) {
+  state.strategy.id = s.id;
+  state.strategy.name = s.name;
+  state.strategy.updatedAt = s.updated_at;
+  state.strategy.error = null;
+  state.strategy.savedSig = strategySig();
+}
+
+function renderStrategyBar() {
+  const st = state.strategy;
+  const avail = state.account.available;
+  $('strat-name').textContent = st.id ? st.name : 'Unsaved strategy';
+  const el = $('strat-status');
+  let text = '';
+  let kind = '';
+  if (st.busy) text = 'Saving…';
+  else if (st.error) { text = st.error; kind = 'error'; }
+  else if (st.id && isDirty()) { text = 'Unsaved changes'; kind = 'dirty'; }
+  else if (st.id) text = `Saved ${when(Date.parse(st.updatedAt))}`;
+  else if (isDirty()) { text = avail && !state.account.user ? 'Not saved. Log in to save.' : 'Not saved'; kind = 'dirty'; }
+  el.textContent = text;
+  el.dataset.kind = kind;
+  const why = avail ? '' : 'Saving needs the app server (python -m app).';
+  for (const id of ['strat-save', 'strat-saveas', 'strat-list']) $(id).title = why;
+  $('strat-save').disabled = !avail || st.busy || (st.id ? !isDirty() : state.legs.length === 0);
+  $('strat-saveas').disabled = !avail || st.busy || !st.id;
+  $('strat-list').disabled = !avail;
+  $('strat-new').disabled = !st.id && !isDirty();
+}
+
+function renderAccount() {
+  const { available, user } = state.account;
+  $('account').hidden = !available;
+  $('acct-email').hidden = !user;
+  $('acct-email').textContent = user?.email || '';
+  $('acct-login').hidden = !!user;
+  $('acct-logout').hidden = !user;
+}
+
+async function checkAccount() {
+  try {
+    state.account = { available: true, user: await apiCall('GET', '/api/auth/me') };
+  } catch (err) {
+    // 401 from our API means "logged out"; anything else (no server, static hosting) means no accounts.
+    state.account = { available: err.status === 401 && err.json, user: null };
+  }
+  renderAccount();
+  renderStrategyBar();
+}
+
+/* ---- dialogs ---- */
+let authResolve = null;
+let authMode = 'login';
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === 'signup';
+  $('auth-title').textContent = signup ? 'Create an account' : 'Log in';
+  $('auth-submit').textContent = signup ? 'Create account' : 'Log in';
+  $('auth-switch').textContent = signup ? 'I have an account' : 'Create an account';
+  $('auth-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('auth-hint').hidden = !signup;
+  $('auth-err').hidden = true;
+}
+// Resolves true once logged in, false if the dialog is dismissed.
+function requireLogin(reason) {
+  if (state.account.user) return Promise.resolve(true);
+  if (!state.account.available) return Promise.resolve(false);
+  setAuthMode('login');
+  $('auth-reason').textContent = reason || '';
+  $('auth-reason').hidden = !reason;
+  $('auth-password').value = '';
+  $('auth-dlg').showModal();
+  $('auth-email').focus();
+  return new Promise((resolve) => { authResolve = resolve; });
+}
+
+let nameResolve = null;
+function askName(title, initial, submitLabel = 'Save') {
+  $('name-title').textContent = title;
+  $('name-submit').textContent = submitLabel;
+  $('name-input').value = initial || '';
+  $('name-err').hidden = true;
+  $('name-dlg').showModal();
+  $('name-input').select();
+  return new Promise((resolve) => { nameResolve = resolve; });
+}
+
+function defaultName() {
+  const open = state.legs.filter((l) => l.exitPrice == null);
+  const exps = [...new Set(open.map((l) => l.exp))].sort();
+  return `${state.symbol} ${open.length || state.legs.length}-leg${exps.length ? `, ${shortDate(exps[0])}` : ''}`;
+}
+
+// Runs fn; if the session ran out (401), asks to log in again and retries once.
+async function withLogin(fn, reason) {
+  try { return await fn(); } catch (err) {
+    if (err.status !== 401) throw err;
+    state.account.user = null;
+    renderAccount();
+    if (!(await requireLogin(reason || 'Your session ended. Log in again to continue.'))) return undefined;
+    return fn();
+  }
+}
+
+/* ---- save / open / rename / delete ---- */
+async function saveStrategy(asNew = false) {
+  if (!(await requireLogin('Log in or create an account to save strategies.'))) return;
+  const st = state.strategy;
+  let name = st.name;
+  if (!st.id || asNew) {
+    name = await askName(asNew ? 'Save as a new strategy' : 'Save strategy', asNew ? `${st.name} (copy)` : defaultName());
+    if (name == null) return;
+  }
+  st.busy = true; st.error = null; renderStrategyBar();
+  try {
+    const body = strategyPayload();
+    const saved = await withLogin(() => (st.id && !asNew
+      ? apiCall('PATCH', `/api/strategies/${st.id}`, body)
+      : apiCall('POST', '/api/strategies', { ...body, name })));
+    if (saved) markSaved(saved);
+  } catch (err) {
+    if (err.status === 404) { st.id = null; st.error = 'That strategy was deleted. Save it again to keep it.'; }
+    else st.error = `Couldn't save: ${err.message}`;
+  } finally {
+    st.busy = false;
+    render();
+  }
+}
+
+async function openStrategy(id) {
+  if (!confirmDiscard('open another strategy')) return;
+  let s;
+  try { s = await withLogin(() => apiCall('GET', `/api/strategies/${id}`)); }
+  catch (err) { alert(`Couldn't open it: ${err.message}`); return; }
+  if (!s) return;
+  $('list-dlg').close();
+  const sc = s.scenario || {};
+  state.ivShift = sc.ivShift ?? 0;
+  state.targetMin = sc.targetMin ?? 0;
+  state.spotPct = sc.spotPct ?? 0;
+  if (Number.isFinite(sc.r)) state.r = sc.r;
+  if (Number.isFinite(sc.q)) state.q = sc.q;
+  $('rate').value = (state.r * 100).toFixed(2);
+  $('div').value = (state.q * 100).toFixed(2);
+  state.notes = s.notes || '';
+  $('notes').value = state.notes;
+  const legs = (s.legs || []).map((l) => ({ ...l, id: l.id || uid() }));
+  state.strategy = { id: s.id, name: s.name, savedSig: null, updatedAt: s.updated_at, error: null, busy: false };
+  state.posSig = null;
+  selectTab('pos');
+  if (s.symbol !== state.symbol || !state.chains.size) {
+    state.symbol = s.symbol; // so the sig below matches while the chain loads
+    state.legs = legs;
+    state.strategy.savedSig = strategySig();
+    await loadSymbol(s.symbol, legs);
+  } else {
+    state.legs = legs;
+    state.strategy.savedSig = strategySig();
+    render();
+    tick();
+  }
+}
+
+async function renameStrategy(id, current) {
+  const name = await askName('Rename strategy', current, 'Rename');
+  if (name == null || name === current) return;
+  try {
+    const s = await withLogin(() => apiCall('PATCH', `/api/strategies/${id}`, { name }));
+    if (s && state.strategy.id === id) { state.strategy.name = s.name; state.strategy.updatedAt = s.updated_at; renderStrategyBar(); }
+  } catch (err) { alert(`Couldn't rename it: ${err.message}`); }
+  loadList();
+}
+
+async function deleteStrategy(id, name) {
+  if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+  try { await withLogin(() => apiCall('DELETE', `/api/strategies/${id}`)); }
+  catch (err) { if (err.status !== 404) { alert(`Couldn't delete it: ${err.message}`); return; } }
+  if (state.strategy.id === id) { state.strategy.id = null; state.strategy.name = ''; renderStrategyBar(); }
+  loadList();
+}
+
+async function loadList() {
+  const msg = $('list-msg');
+  let rows;
+  try { rows = await withLogin(() => apiCall('GET', '/api/strategies')); }
+  catch (err) { msg.textContent = `Couldn't load your strategies: ${err.message}`; msg.hidden = false; $('list-wrap').hidden = true; return; }
+  if (!rows) return;
+  msg.hidden = rows.length > 0;
+  msg.textContent = 'No saved strategies yet. Build one from the option chain, then click Save.';
+  $('list-wrap').hidden = !rows.length;
+  $('list-body').innerHTML = rows.map((r) => `<tr data-id="${esc(r.id)}" data-name="${esc(r.name)}" class="${r.id === state.strategy.id ? 'current' : ''}">
+    <td class="name" title="${esc(r.name)}">${esc(r.name)}</td>
+    <td>${esc(r.symbol)}</td>
+    <td class="num">${r.open_legs}${r.open_legs !== r.leg_count ? ` <span class="sub">of ${r.leg_count}</span>` : ''}</td>
+    <td>${esc(when(Date.parse(r.updated_at)))}</td>
+    <td class="acts"><button type="button" class="primary" data-act="open">Open</button>
+      <button type="button" class="quiet" data-act="rename">Rename</button>
+      <button type="button" class="quiet" data-act="delete">Delete</button></td>
+  </tr>`).join('');
+}
+
+async function openList() {
+  if (!(await requireLogin('Log in to see your saved strategies.'))) return;
+  $('list-msg').textContent = 'Loading…';
+  $('list-msg').hidden = false;
+  $('list-wrap').hidden = true;
+  $('list-dlg').showModal();
+  loadList();
+}
+
+function wireAccount() {
+  for (const b of document.querySelectorAll('dialog [data-close]')) b.addEventListener('click', () => b.closest('dialog').close());
+
+  $('auth-switch').addEventListener('click', () => setAuthMode(authMode === 'login' ? 'signup' : 'login'));
+  $('auth-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const email = $('auth-email').value.trim();
+    const password = $('auth-password').value;
+    const err = $('auth-err');
+    const fail = (m) => { err.textContent = m; err.hidden = false; };
+    if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) return fail('Enter your email address.');
+    if (authMode === 'signup' && password.length < 10) return fail('Use a password of at least 10 characters.');
+    if (!password) return fail('Enter your password.');
+    $('auth-submit').disabled = true;
+    try {
+      state.account.user = await apiCall('POST', `/api/auth/${authMode}`, { email, password });
+      $('auth-password').value = '';
+      const done = authResolve; authResolve = null;
+      $('auth-dlg').close();
+      renderAccount();
+      renderStrategyBar();
+      done?.(true);
+    } catch (e) { fail(e.message); }
+    finally { $('auth-submit').disabled = false; }
+  });
+  $('auth-dlg').addEventListener('close', () => {
+    $('auth-password').value = '';
+    const done = authResolve; authResolve = null;
+    done?.(false);
+  });
+
+  $('name-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const name = $('name-input').value.trim();
+    if (!name) { $('name-err').textContent = 'Give it a name.'; $('name-err').hidden = false; return; }
+    const done = nameResolve; nameResolve = null;
+    $('name-dlg').close();
+    done?.(name);
+  });
+  $('name-dlg').addEventListener('close', () => { const done = nameResolve; nameResolve = null; done?.(null); });
+
+  $('list-body').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-act]');
+    const tr = b?.closest('tr');
+    if (!tr) return;
+    const { id, name } = tr.dataset;
+    if (b.dataset.act === 'open') openStrategy(id);
+    else if (b.dataset.act === 'rename') renameStrategy(id, name);
+    else if (b.dataset.act === 'delete') deleteStrategy(id, name);
+  });
+
+  $('acct-login').addEventListener('click', () => requireLogin(''));
+  $('acct-logout').addEventListener('click', async () => {
+    if (!confirmDiscard('log out')) return;
+    try { await apiCall('POST', '/api/auth/logout'); } catch { /* the cookie is cleared server-side when reachable */ }
+    state.account.user = null;
+    // Start from a blank page so the next person at this browser sees nothing of the account.
+    resetStrategy();
+    state.legs = [];
+    state.posSig = null;
+    selectTab('pos');
+    renderAccount();
+    render();
+  });
+
+  $('strat-save').addEventListener('click', () => saveStrategy(false));
+  $('strat-saveas').addEventListener('click', () => saveStrategy(true));
+  $('strat-list').addEventListener('click', openList);
+  $('strat-new').addEventListener('click', () => {
+    if (!confirmDiscard('start a new strategy')) return;
+    resetStrategy();
+    state.legs = [];
+    state.posSig = null;
+    render();
+  });
+  $('notes').addEventListener('input', (ev) => { state.notes = ev.target.value; renderStrategyBar(); });
+  window.addEventListener('beforeunload', (ev) => { if (isDirty()) { ev.preventDefault(); ev.returnValue = ''; } });
+}
+
 async function boot() {
+  purgeOldLegs();
   loadPrefs();
   $('refresh').value = String(state.refreshMs);
   $('rate').value = (state.r * 100).toFixed(2);
   $('div').value = (state.q * 100).toFixed(2);
   wire();
+  wireAccount();
   state.mode = await detectMode();
+  await checkAccount();
   await loadSymbol(state.symbol);
   schedule();
 }

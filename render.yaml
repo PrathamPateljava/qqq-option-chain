@@ -1,16 +1,25 @@
 # Render blueprint: New > Blueprint, point it at this repo.
+# The database lives elsewhere (Neon free tier recommended); paste its URL into DATABASE_URL.
 services:
   - type: web
     name: qqq-payoff
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python payoff_server.py --host 0.0.0.0 --no-browser
+    # Migrations run on every start, so the schema is always current.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /healthz
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
       - key: DATA_SOURCE
         value: alpaca
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
       - key: ALLOWED_HOSTS
-        sync: false   # set to your-service.onrender.com
+        sync: false   # your-service.onrender.com
       - key: ALPACA_API_KEY_ID
         sync: false
       - key: ALPACA_API_SECRET_KEY

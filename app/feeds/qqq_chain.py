@@ -8,7 +8,7 @@ One-time setup
      as SCHWAB_APP_KEY and SCHWAB_APP_SECRET (see .env.example).
      The callback URL registered on your app must match CALLBACK_URL exactly
      (default https://127.0.0.1 - override with SCHWAB_CALLBACK_URL).
-  3. python qqq_chain.py
+  3. python -m app.feeds.qqq_chain
      The first run prints a login URL. After you approve, the browser lands on a page
      that fails to load - that's expected. Copy the FULL URL from the address bar and
      paste it into the terminal right away (the code in it expires quickly).
@@ -18,12 +18,12 @@ so keep that file private and out of git. Access tokens auto-refresh every 30 mi
 Schwab forces a fresh browser login every 7 days.
 
 Usage
-  python qqq_chain.py                                  # expiries in the next 7 days, 30 strikes
-  python qqq_chain.py --days 30 --strikes 60 --out qqq.csv
-  python qqq_chain.py --watch 15 --out qqq_ticks.csv   # poll every 15s, append snapshots
+  python -m app.feeds.qqq_chain                                  # expiries in the next 7 days, 30 strikes
+  python -m app.feeds.qqq_chain --days 30 --strikes 60 --out qqq.csv
+  python -m app.feeds.qqq_chain --watch 15 --out qqq_ticks.csv   # poll every 15s, append snapshots
 
 In a notebook:
-  from qqq_chain import fetch_chain, chain_to_df
+  from app.feeds.qqq_chain import fetch_chain, chain_to_df
   df = chain_to_df(fetch_chain("QQQ", days=7, strikes=30))
 """
 from __future__ import annotations
@@ -42,9 +42,9 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 import requests
 
-try:  # load .env next to this file; real environment variables win
+try:  # load the project's .env; real environment variables win
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 except ImportError:
     pass
 

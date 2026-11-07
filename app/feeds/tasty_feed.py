@@ -10,7 +10,7 @@ One-time setup
   3. Put TASTY_CLIENT_SECRET and TASTY_REFRESH_TOKEN in .env (see .env.example)
      or export them as environment variables.
 
-Check your setup:   python tasty_feed.py QQQ
+Check your setup:   python -m app.feeds.tasty_feed QQQ
 The refresh token doesn't expire, so there is no browser login to repeat.
 """
 from __future__ import annotations
@@ -26,9 +26,9 @@ from urllib.parse import quote
 
 import requests
 
-try:  # load .env next to this file; real environment variables win
+try:  # load the project's .env; real environment variables win
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 except ImportError:
     pass
 

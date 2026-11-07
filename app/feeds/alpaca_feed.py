@@ -9,7 +9,7 @@ One-time setup
   3. Put ALPACA_API_KEY_ID and ALPACA_API_SECRET_KEY in .env (see .env.example)
      or export them as environment variables.
 
-Check your setup:   python alpaca_feed.py QQQ
+Check your setup:   python -m app.feeds.alpaca_feed QQQ
 
 Feeds: the free plan gets Alpaca's indicative options feed, where quotes are modified
 and trades delayed, so treat prices as approximate. With the Algo Trader Plus
@@ -28,9 +28,9 @@ from urllib.parse import quote
 
 import requests
 
-try:  # load .env next to this file; real environment variables win
+try:  # load the project's .env; real environment variables win
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().with_name(".env"))
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 except ImportError:
     pass
 
