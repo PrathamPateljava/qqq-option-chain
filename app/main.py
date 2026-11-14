@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app import mailer
 from app.config import ROOT, get_settings
 from app.routers import auth, market, strategies
 from app.security import CSRFMiddleware
@@ -50,6 +51,8 @@ def create_app(connect_source: bool = True) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        for problem in mailer.config_problems(settings):
+            log.warning(problem)
         if connect_source:
             try:
                 source = market.make_source(settings.data_source, settings.strikes)

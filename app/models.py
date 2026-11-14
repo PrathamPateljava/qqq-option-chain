@@ -1,4 +1,4 @@
-"""Database tables: users, login sessions and saved strategies."""
+"""Database tables: users, login sessions, one-time email links and saved strategies."""
 from __future__ import annotations
 
 import uuid
@@ -40,6 +40,18 @@ class LoginSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class EmailToken(Base):
+    """A one-time link sent by email (purpose "reset" = password reset). `id` is the
+    SHA-256 of the token in the link, so the table alone can't be used to reset anyone."""
+    __tablename__ = "email_tokens"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class Strategy(Base):

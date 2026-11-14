@@ -3,9 +3,11 @@
     python -m app.cli list-users
     python -m app.cli reset-password someone@example.com     # prompts, or --generate
     python -m app.cli delete-user someone@example.com
+    python -m app.cli send-test-email you@example.com        # checks the email settings
 
-A password reset also logs the user out everywhere. Send the new password to the user
-over a channel you trust, and ask them to change it (once a change-password screen exists).
+People can reset their own password with "Forgot password?" on the login screen. The
+manual reset is a fallback: it also logs the user out everywhere. Send the new password
+over a channel you trust, and ask them to choose their own with "Forgot password?".
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ import sys
 
 from sqlalchemy import func, select
 
+from app import mailer
+from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models import Strategy, User
 from app.routers.auth import MIN_PASSWORD
@@ -69,6 +73,21 @@ def delete_user(args) -> None:
         print(f"Deleted {args.email}.")
 
 
+def send_test_email(args) -> None:
+    settings = get_settings()
+    backend = settings.email_backend.strip().lower()
+    if backend == "console":
+        sys.exit("Nothing sent: EMAIL_BACKEND is console (the default), which only prints emails in the terminal.\n"
+                 "To send real email, add EMAIL_BACKEND=brevo, EMAIL_FROM and BREVO_API_KEY to .env.")
+    for problem in mailer.config_problems(settings):
+        print(f"Warning: {problem}")
+    try:
+        mailer.send(mailer.setup_check(args.email))
+    except mailer.EmailError as err:
+        sys.exit(f"Not sent: {err}")
+    print(f"Sent a test email to {args.email} through {backend}. If it isn't in the inbox, check spam.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="python -m app.cli", description="Payoff admin commands")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -81,6 +100,9 @@ def main() -> None:
     p.add_argument("email")
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     p.set_defaults(fn=delete_user)
+    p = sub.add_parser("send-test-email")
+    p.add_argument("email")
+    p.set_defaults(fn=send_test_email)
     args = ap.parse_args()
     args.fn(args)
 

@@ -16,10 +16,16 @@ services:
         value: alpaca
       - key: COOKIE_SECURE
         value: "true"
+      - key: EMAIL_BACKEND
+        value: brevo
       - key: DATABASE_URL
         sync: false
-      - key: ALLOWED_HOSTS
-        sync: false   # your-service.onrender.com
+      - key: APP_URL
+        sync: false   # https://your-service.onrender.com (its hostname is allowed automatically)
+      - key: EMAIL_FROM
+        sync: false   # the sender address you verified in Brevo
+      - key: BREVO_API_KEY
+        sync: false
       - key: ALPACA_API_KEY_ID
         sync: false
       - key: ALPACA_API_SECRET_KEY

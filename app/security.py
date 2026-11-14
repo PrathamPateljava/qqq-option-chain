@@ -1,4 +1,5 @@
-"""Password hashing, login sessions, CSRF protection and a small rate limiter."""
+"""Password hashing, login sessions, one-time email links, CSRF protection and a small
+rate limiter."""
 from __future__ import annotations
 
 import hashlib
@@ -19,7 +20,7 @@ from starlette.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import get_db
-from app.models import LoginSession, User
+from app.models import EmailToken, LoginSession, User
 
 COOKIE = "payoff_session"
 CSRF_HEADER = "X-Requested-With"
@@ -93,6 +94,35 @@ def current_user(user: User | None = Depends(optional_user)) -> User:
     if user is None:
         raise HTTPException(status_code=401, detail="Log in to continue.")
     return user
+
+
+# ---- one-time email links ----------------------------------------------------------------
+def issue_email_token(db: Session, user: User, purpose: str, ttl: timedelta) -> str:
+    """Stores a new link token for `user` and returns it. Only its hash is kept."""
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    db.execute(delete(EmailToken).where(EmailToken.expires_at < now))
+    db.add(EmailToken(id=_digest(token), user_id=user.id, purpose=purpose, expires_at=now + ttl))
+    db.commit()
+    return token
+
+
+def redeem_email_token(db: Session, token: str, purpose: str) -> User | None:
+    """Uses up a link token: returns its user if it's valid and unexpired, and deletes it
+    along with the user's other links of the same kind. The delete is what claims the token,
+    so two requests racing with the same link can't both succeed. The caller commits."""
+    if not token or len(token) > 200:
+        return None
+    user_id = db.execute(
+        delete(EmailToken)
+        .where(EmailToken.id == _digest(token), EmailToken.purpose == purpose,
+               EmailToken.expires_at > datetime.now(timezone.utc))
+        .returning(EmailToken.user_id)
+    ).scalar_one_or_none()
+    if user_id is None:
+        return None
+    db.execute(delete(EmailToken).where(EmailToken.user_id == user_id, EmailToken.purpose == purpose))
+    return db.get(User, user_id)
 
 
 # ---- CSRF --------------------------------------------------------------------------------

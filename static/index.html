@@ -234,6 +234,8 @@ dialog::backdrop { background: rgba(10, 20, 36, .45); }
 .dlg input[type="email"], .dlg input[type="password"], .dlg input[type="text"] { padding: 7px 9px; border: 1px solid var(--rule);
   border-radius: 4px; background: var(--paper); color: var(--ink); font-size: 15px; }
 .dlg .err { color: var(--loss); font-size: 13.5px; }
+.dlg .ok { color: var(--ink); }
+.dlg .forgot { justify-self: start; margin-top: -8px; padding: 0; font-size: 13px; }
 .dlg .acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .dlg .acts .switch { margin-right: auto; }
 .strat-list { max-height: min(60vh, 520px); overflow: auto; border-top: 1px solid var(--rule); }
@@ -419,14 +421,32 @@ dialog::backdrop { background: rgba(10, 20, 36, .45); }
   <form id="auth-form" class="dlg" method="dialog" novalidate>
     <h2 id="auth-title">Log in</h2>
     <p id="auth-reason" hidden></p>
+    <p id="auth-forgot-intro" hidden>Enter the email you signed up with and we'll send you a link to choose a new password.</p>
     <label>Email<input id="auth-email" type="email" autocomplete="email" required maxlength="254"></label>
-    <label>Password<input id="auth-password" type="password" autocomplete="current-password" required minlength="1" maxlength="256"></label>
+    <label id="auth-pw-row">Password<input id="auth-password" type="password" autocomplete="current-password" required minlength="1" maxlength="256"></label>
+    <button id="auth-forgot" class="quiet forgot" type="button">Forgot password?</button>
     <p id="auth-hint" hidden>At least 10 characters.</p>
+    <p id="auth-sent" class="ok" role="status" hidden></p>
     <p id="auth-err" class="err" role="alert" hidden></p>
     <div class="acts">
       <button id="auth-switch" class="quiet switch" type="button">Create an account</button>
       <button type="button" data-close>Cancel</button>
       <button id="auth-submit" class="primary" type="submit">Log in</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reset-dlg" aria-labelledby="reset-title">
+  <form id="reset-form" class="dlg" method="dialog" novalidate>
+    <h2 id="reset-title">Choose a new password</h2>
+    <p id="reset-intro">You'll be logged in here and logged out on every other device.</p>
+    <label id="reset-pw-row">New password<input id="reset-password" type="password" autocomplete="new-password" required minlength="10" maxlength="256"></label>
+    <p id="reset-hint">At least 10 characters.</p>
+    <p id="reset-err" class="err" role="alert" hidden></p>
+    <div class="acts">
+      <button id="reset-again" class="quiet switch" type="button" hidden>Email me a new link</button>
+      <button id="reset-cancel" type="button" data-close>Cancel</button>
+      <button id="reset-submit" class="primary" type="submit">Set password</button>
     </div>
   </form>
 </dialog>
@@ -1766,27 +1786,89 @@ async function checkAccount() {
 /* ---- dialogs ---- */
 let authResolve = null;
 let authMode = 'login';
+// mode: 'login' | 'signup' | 'forgot' (ask for a password-reset email)
 function setAuthMode(mode) {
   authMode = mode;
-  const signup = mode === 'signup';
-  $('auth-title').textContent = signup ? 'Create an account' : 'Log in';
-  $('auth-submit').textContent = signup ? 'Create account' : 'Log in';
-  $('auth-switch').textContent = signup ? 'I have an account' : 'Create an account';
+  const signup = mode === 'signup', forgot = mode === 'forgot';
+  $('auth-title').textContent = forgot ? 'Reset your password' : signup ? 'Create an account' : 'Log in';
+  $('auth-submit').textContent = forgot ? 'Email me a link' : signup ? 'Create account' : 'Log in';
+  $('auth-switch').textContent = forgot ? 'Back to log in' : signup ? 'I have an account' : 'Create an account';
   $('auth-password').autocomplete = signup ? 'new-password' : 'current-password';
+  $('auth-reason').hidden = forgot || !$('auth-reason').textContent;
+  $('auth-forgot-intro').hidden = !forgot;
+  $('auth-pw-row').hidden = forgot;
+  $('auth-forgot').hidden = mode !== 'login';
   $('auth-hint').hidden = !signup;
+  $('auth-sent').hidden = true;
   $('auth-err').hidden = true;
+}
+function openAuth(mode, reason) {
+  $('auth-reason').textContent = reason || '';
+  setAuthMode(mode);
+  $('auth-password').value = '';
+  if (!$('auth-dlg').open) $('auth-dlg').showModal();
+  $('auth-email').focus();
 }
 // Resolves true once logged in, false if the dialog is dismissed.
 function requireLogin(reason) {
   if (state.account.user) return Promise.resolve(true);
   if (!state.account.available) return Promise.resolve(false);
-  setAuthMode('login');
-  $('auth-reason').textContent = reason || '';
-  $('auth-reason').hidden = !reason;
-  $('auth-password').value = '';
-  $('auth-dlg').showModal();
-  $('auth-email').focus();
+  openAuth('login', reason);
   return new Promise((resolve) => { authResolve = resolve; });
+}
+
+/* ---- password reset from an emailed link (/#reset=<token>) ---- */
+let resetToken = null;
+// Takes the token out of the address bar right away, so it stays out of history and bookmarks.
+function takeResetToken() {
+  const m = location.hash.match(/^#reset=(.*)$/);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  return m[1];
+}
+function openReset(token) {
+  resetToken = token;
+  $('reset-title').textContent = 'Choose a new password';
+  $('reset-intro').textContent = "You'll be logged in here and logged out on every other device.";
+  $('reset-intro').hidden = false;
+  $('reset-pw-row').hidden = false;
+  $('reset-hint').hidden = false;
+  $('reset-err').hidden = true;
+  $('reset-again').hidden = true;
+  $('reset-submit').hidden = false;
+  $('reset-cancel').textContent = 'Cancel';
+  $('reset-password').value = '';
+  $('reset-dlg').showModal();
+  $('reset-password').focus();
+}
+async function submitReset() {
+  const password = $('reset-password').value;
+  const err = $('reset-err');
+  const fail = (m) => { err.textContent = m; err.hidden = false; };
+  if (password.length < 10) return fail('Use a password of at least 10 characters.');
+  $('reset-submit').disabled = true;
+  try {
+    const user = await apiCall('POST', '/api/auth/reset', { token: resetToken, password });
+    resetToken = null;
+    state.account.user = user;
+    renderAccount();
+    renderStrategyBar();
+    $('reset-password').value = '';
+    $('reset-title').textContent = 'Password changed';
+    $('reset-intro').textContent = `You're logged in as ${user.email}. Any other devices have been logged out.`;
+    $('reset-pw-row').hidden = true;
+    $('reset-hint').hidden = true;
+    $('reset-err').hidden = true;
+    $('reset-submit').hidden = true;
+    $('reset-cancel').textContent = 'Done';
+    $('reset-cancel').focus();
+  } catch (e) {
+    fail(e.message);
+    if (e.status === 400) {  // the link itself is no good: offer a new one instead of another try
+      for (const id of ['reset-intro', 'reset-pw-row', 'reset-hint', 'reset-submit']) $(id).hidden = true;
+      $('reset-again').hidden = false;
+    }
+  } finally { $('reset-submit').disabled = false; }
 }
 
 let nameResolve = null;
@@ -1927,6 +2009,7 @@ function wireAccount() {
   for (const b of document.querySelectorAll('dialog [data-close]')) b.addEventListener('click', () => b.closest('dialog').close());
 
   $('auth-switch').addEventListener('click', () => setAuthMode(authMode === 'login' ? 'signup' : 'login'));
+  $('auth-forgot').addEventListener('click', () => { setAuthMode('forgot'); $('auth-email').focus(); });
   $('auth-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const email = $('auth-email').value.trim();
@@ -1934,6 +2017,19 @@ function wireAccount() {
     const err = $('auth-err');
     const fail = (m) => { err.textContent = m; err.hidden = false; };
     if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) return fail('Enter your email address.');
+    if (authMode === 'forgot') {
+      err.hidden = true;
+      $('auth-submit').disabled = true;
+      try {
+        await apiCall('POST', '/api/auth/forgot', { email });
+        $('auth-sent').textContent = `If ${email} has an account, a link to choose a new password is on its way. `
+          + "It expires in 1 hour. If it doesn't arrive in a few minutes, check your spam folder.";
+        $('auth-sent').hidden = false;
+        $('auth-submit').textContent = 'Send again';
+      } catch (e) { $('auth-sent').hidden = true; fail(e.message); }
+      finally { $('auth-submit').disabled = false; }
+      return;
+    }
     if (authMode === 'signup' && password.length < 10) return fail('Use a password of at least 10 characters.');
     if (!password) return fail('Enter your password.');
     $('auth-submit').disabled = true;
@@ -1953,6 +2049,10 @@ function wireAccount() {
     const done = authResolve; authResolve = null;
     done?.(false);
   });
+
+  $('reset-form').addEventListener('submit', (ev) => { ev.preventDefault(); submitReset(); });
+  $('reset-again').addEventListener('click', () => { $('reset-dlg').close(); openAuth('forgot'); });
+  $('reset-dlg').addEventListener('close', () => { $('reset-password').value = ''; resetToken = null; });
 
   $('name-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
@@ -2003,6 +2103,7 @@ function wireAccount() {
 }
 
 async function boot() {
+  const token = takeResetToken();
   purgeOldLegs();
   loadPrefs();
   $('refresh').value = String(state.refreshMs);
@@ -2012,6 +2113,7 @@ async function boot() {
   wireAccount();
   state.mode = await detectMode();
   await checkAccount();
+  if (token && state.account.available) openReset(token);
   await loadSymbol(state.symbol);
   schedule();
 }
